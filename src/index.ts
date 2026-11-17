@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { read_file, write_file } from "./tools.js";
 
 const openai = new OpenAI({
   baseURL: 'https://api.deepseek.com',
