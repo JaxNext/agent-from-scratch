@@ -12,6 +12,7 @@ async function read_file(path: string) {
 
 async function write_file(path: string, content: string) {
     await fs.writeFileSync(path, content)
+    return `Successfully write file ${path}`
 }
 
 async function confirm(question:string): Promise<boolean> {
