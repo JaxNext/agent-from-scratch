@@ -1,15 +1,15 @@
 import OpenAI from "openai";
-import type { ChatCompletionTool, ChatCompletionMessage } from "openai/resources/chat/completions";
-import { getSchema, getFunc } from "./tools.js";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import { getSchema, callTool } from "./tools.js";
 
 const openai = new OpenAI({
   baseURL: 'https://api.deepseek.com',
   apiKey: process.env.DEEPSEEK_API_KEY
 })
 
-const tools: ChatCompletionTool[] = getSchema()
+const tools = getSchema()
 
-async function sendMessage(messages) {
+async function sendMessage(messages: ChatCompletionMessageParam[]) {
   return openai.chat.completions.create({
     model: 'deepseek-flash',
     messages,
@@ -18,18 +18,14 @@ async function sendMessage(messages) {
   })
 }
 
-async function runToolCalls(msg) {
-  const { tool_calls } = msg
+async function runToolCalls(msg: ChatCompletionMessageParam): Promise<ChatCompletionMessageParam[]> {
+  const tool_calls = (msg as { tool_calls?: { id: string; function: { name: string; arguments: string } }[] }).tool_calls ?? []
   return await Promise.all(tool_calls.map(async x => {
     const { name, arguments: args } = x.function
-    const func = getFunc(name)
-    if (!func) return Promise.reject(`Function ${name} does not exist`)
-    const argsObj = JSON.parse(args)
-    const res = await func(...Object.values(argsObj))
     return {
-      role: 'tool',
+      role: 'tool' as const,
       tool_call_id: x.id,
-      content: res
+      content: await callTool(name, args)
     }
   }))
 }
@@ -37,7 +33,7 @@ async function runToolCalls(msg) {
 async function main(): Promise<void> {
   const MAX_LOOP = 10
   let loopCount = 0
-  let messages: ChatCompletionMessage[] = [
+  let messages: ChatCompletionMessageParam[] = [
     {
       role: 'user',
       content: 'In current directory, create a file index.js for the purpose of printing string "Hello, agent", then run it' 

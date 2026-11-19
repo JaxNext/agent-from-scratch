@@ -1,4 +1,5 @@
 import fs from "fs";
+import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { createInterface } from "node:readline/promises";
@@ -49,82 +50,84 @@ async function run_shell(command: string, approve: Approve = confirm): Promise<s
     }
 }
 
-const tools = {
-  read_file: {
-    schema: {
-        type: 'function',
-        function: {
-            name: 'read_file',
-            description: 'Read a file by a given path',
-            parameters: {
-                type: 'object',
-                properties: {
-                path: {
-                    type: 'string',
-                    description: 'The path of the given file'
-                }
-                },
-                required: ['path']
-            }
-        }
+const definitions = {
+    read_file: {
+        description: 'Read a file by a given path',
+        parameters: {
+            properties: {
+                path: { type: 'string', description: 'The path of the given file' },
+            },
+            required: ['path'],
+        },
+        run: read_file,
     },
-    func: read_file
-  },
-  write_file: {
-    schema: {
-        type: 'function',
-        function: {
-            name: 'write_file',
-            description: 'Write given content into a file by a given path',
-            parameters: {
-                type: 'object',
-                properties: {
-                path: {
-                    type: 'string',
-                    description: 'The path of the given file'
-                },
-                content: {
-                    type: 'string',
-                    description: 'The content that needs to be written'
-                }
-                },
-                required: ['path', 'content']
-            }
-        }
+    write_file: {
+        description: 'Write given content into a file by a given path',
+        parameters: {
+            properties: {
+                path: { type: 'string', description: 'The path of the given file' },
+                content: { type: 'string', description: 'The content that needs to be written' },
+            },
+            required: ['path', 'content'],
+        },
+        run: write_file,
     },
-    func: write_file
-  },
-  run_shell: {
-    schema: {
-        type: 'function',
-        function: {
-            name: 'run_shell',
-            description: 'Run a command-line in shell',
-            parameters: {
-                type: 'object',
-                properties: {
-                command: {
-                    type: 'string',
-                    description: 'The command that needs to be run'
-                }
-                },
-                required: ['command']
-            }
-        }
+    run_shell: {
+        description: 'Run a command-line in shell',
+        parameters: {
+            properties: {
+                command: { type: 'string', description: 'The command that needs to be run' },
+            },
+            required: ['command'],
+        },
+        run: run_shell,
     },
-    func: run_shell
-  }
 }
 
-function getSchema() {
-    return Object.values(tools).map(x => x.schema)
+const registry = {}
+
+for (const [name, definition] of Object.entries(definitions)) {
+    registry[name] = {
+        schema: {
+            type: 'function',
+            function: {
+                name,
+                description: definition.description,
+                parameters: {
+                    type: 'object',
+                    properties: definition.parameters.properties,
+                    required: definition.parameters.required,
+                },
+            },
+        },
+        run: definition.run,
+    }
 }
 
-function getFunc(funcName: string) {
-    return tools[funcName].func
+function getSchema(): ChatCompletionTool[] {
+    return Object.values(registry).map(tool => tool.schema)
+}
+
+async function callTool(name: string, rawArgs: string): Promise<string> {
+    const tool = registry[name]
+    if (!tool) return `Unknown tool: ${name}`
+
+    let args: unknown = {}
+    if (rawArgs.trim()) {
+        try {
+            args = JSON.parse(rawArgs)
+        } catch {
+            return `Invalid JSON arguments for ${name}: ${rawArgs}`
+        }
+    }
+
+    return tool.run(...(Object.values(args)))
 }
 
 export {
+    read_file,
+    write_file,
+    run_shell,
     getSchema,
-    getFunc,
+    callTool,
 }
