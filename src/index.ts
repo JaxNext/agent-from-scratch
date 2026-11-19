@@ -1,75 +1,13 @@
 import OpenAI from "openai";
 import type { ChatCompletionTool, ChatCompletionMessage } from "openai/resources/chat/completions";
-import { read_file, write_file, run_shell } from "./tools.js";
+import { getSchema, getFunc } from "./tools.js";
 
 const openai = new OpenAI({
   baseURL: 'https://api.deepseek.com',
   apiKey: process.env.DEEPSEEK_API_KEY
 })
 
-const toolFuncs = {
-  read_file,
-  write_file,
-  run_shell
-}
-
-const tools: ChatCompletionTool[] = [
-  {
-    type: 'function',
-    function: {
-      name: 'read_file',
-      description: 'Read a file by a given path',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: {
-            type: 'string',
-            description: 'The path of the given file'
-          }
-        },
-        required: ['path']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'write_file',
-      description: 'Write given content into a file by a given path',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: {
-            type: 'string',
-            description: 'The path of the given file'
-          },
-          content: {
-            type: 'string',
-            description: 'The content that needs to be written'
-          }
-        },
-        required: ['path', 'content']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'run_shell',
-      description: 'Run a command-line in shell',
-      parameters: {
-        type: 'object',
-        properties: {
-          command: {
-            type: 'string',
-            description: 'The command that needs to be run'
-          }
-        },
-        required: ['command']
-      }
-    }
-  }
-]
+const tools: ChatCompletionTool[] = getSchema()
 
 async function sendMessage(messages) {
   return openai.chat.completions.create({
@@ -84,7 +22,7 @@ async function runToolCalls(msg) {
   const { tool_calls } = msg
   return await Promise.all(tool_calls.map(async x => {
     const { name, arguments: args } = x.function
-    const func = toolFuncs[name]
+    const func = getFunc(name)
     if (!func) return Promise.reject(`Function ${name} does not exist`)
     const argsObj = JSON.parse(args)
     const res = await func(...Object.values(argsObj))

@@ -49,8 +49,82 @@ async function run_shell(command: string, approve: Approve = confirm): Promise<s
     }
 }
 
+const tools = {
+  read_file: {
+    schema: {
+        type: 'function',
+        function: {
+            name: 'read_file',
+            description: 'Read a file by a given path',
+            parameters: {
+                type: 'object',
+                properties: {
+                path: {
+                    type: 'string',
+                    description: 'The path of the given file'
+                }
+                },
+                required: ['path']
+            }
+        }
+    },
+    func: read_file
+  },
+  write_file: {
+    schema: {
+        type: 'function',
+        function: {
+            name: 'write_file',
+            description: 'Write given content into a file by a given path',
+            parameters: {
+                type: 'object',
+                properties: {
+                path: {
+                    type: 'string',
+                    description: 'The path of the given file'
+                },
+                content: {
+                    type: 'string',
+                    description: 'The content that needs to be written'
+                }
+                },
+                required: ['path', 'content']
+            }
+        }
+    },
+    func: write_file
+  },
+  run_shell: {
+    schema: {
+        type: 'function',
+        function: {
+            name: 'run_shell',
+            description: 'Run a command-line in shell',
+            parameters: {
+                type: 'object',
+                properties: {
+                command: {
+                    type: 'string',
+                    description: 'The command that needs to be run'
+                }
+                },
+                required: ['command']
+            }
+        }
+    },
+    func: run_shell
+  }
+}
+
+function getSchema() {
+    return Object.values(tools).map(x => x.schema)
+}
+
+function getFunc(funcName: string) {
+    return tools[funcName].func
+}
+
 export {
-    read_file,
-    write_file,
-    run_shell,
+    getSchema,
+    getFunc,
 }
